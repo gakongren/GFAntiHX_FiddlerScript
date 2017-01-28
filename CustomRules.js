@@ -1,4 +1,4 @@
-﻿import System;
+import System;
 import System.Windows.Forms;
 import Fiddler;
 
@@ -264,7 +264,9 @@ class Handlers
         }
 
     }
-
+        
+    static var forceModifyFomular = false;  
+    static var formular = "\"naive_build_gun_formula\":\"33:33:33:33\"";            //要替换掉的公式
     static function OnBeforeResponse(oSession: Session) {
         if (m_Hide304s && oSession.responseCode == 304) {
             oSession["ui-hide"] = "true";
@@ -272,17 +274,49 @@ class Handlers
 		var rx2=/\/index\.php\/(\d{4}?)\/Index\/index/;
 		var str2=oSession.PathAndQuery;
 		if (str2.match(rx2)){
-			handleFormula(oSession);
+            if(forceModifyFomular)
+                forceHandleFormular(oSession);
+            else
+			    handleFormula(oSession);
 		}
     }
 		
+    static function forceHandleFormular(oSession: Session){
+        //强制替换掉即使已存在的公式
+        var rx=/\"naive_build_gun_formula\":\"((\d+):(\d+):(\d+):(\d+))?\"/;
+        var strBody=oSession.GetResponseBodyAsString();
+        var re=strBody.match(rx)[0];
+        strBody=strBody.replace(re,formular);
+        oSession.utilSetResponseBody(strBody);
+        FiddlerObject.log("已强制替换请求,公式为"+formular);
+        FiddlerObject.StatusText = "已强制替换请求,公式为"+formular;
+        oSession["ui-color"]="gold";
+    }
+            
 	static function handleFormula(oSession: Session){
-		var strBody=oSession.GetResponseBodyAsString();
-		strBody=strBody.replace("\"naive_build_gun_formula\":\"\"","\"naive_build_gun_formula\":\"33:33:33:33\"");
+        var strBody=oSession.GetResponseBodyAsString();
+		strBody=strBody.replace("\"naive_build_gun_formula\":\"\"",formular);       //将来如果官方的公式实装了,就不会发生实际的修改效果
 		oSession.utilSetResponseBody(strBody);
-		FiddlerObject.log("已替换请求");
-		oSession["ui-color"]="orange";
-	}
+        
+        var rx=/\"naive_build_gun_formula\":\"(\d+):(\d+):(\d+):(\d+)\"/;           //正则匹配判断公式是否被修改
+        if(strBody.Contains(formular)){
+            //官方未实装时由脚本修改的公式
+            FiddlerObject.log("已替换请求,公式为"+formular);
+            FiddlerObject.StatusText = "已替换请求,公式为"+formular;
+            oSession["ui-color"]="orange";
+        }
+        else if(strBody.match(rx)){
+            //官方已经实装公式
+            formular = strBody.match(rx)[0];
+            FiddlerObject.log("未替换请求,已存在公式"+formular);
+            FiddlerObject.StatusText = "未替换请求,已存在公式"+formular;
+            oSession["ui-color"]="purple";
+        }
+        else{
+            FiddlerObject.log("未替换请求");
+        }
+            
+    }
 
 /*
     // This function executes just before Fiddler returns an error that it has 
@@ -374,6 +408,17 @@ class Handlers
 
         var sAction = sParams[0].toLowerCase();
         switch (sAction) {
+        case "override":
+                if(sParams.Length==2){
+                    if("true".Equals(sParams[1])){forceModifyFomular = true;return true;}
+                    if("false".Equals(sParams[1])){forceModifyFomular = false;return true;}
+                    return false;
+                }else if(sParams.Length==5){
+                    formular="\"naive_build_gun_formula\":\""+sParams[1]+":"+sParams[2]+":"+sParams[3]+":"+sParams[4]+"\"";
+                    forceModifyFomular = true;
+                    return true;
+                }
+                return false;
         case "bold":
             if (sParams.Length<2) {uiBoldURI=null; FiddlerObject.StatusText="Bolding cleared"; return false;}
             uiBoldURI = sParams[1]; FiddlerObject.StatusText="Bolding requests for " + uiBoldURI;
@@ -485,8 +530,3 @@ class Handlers
         }
     }
 }
-
-
-
-
-

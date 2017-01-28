@@ -2,6 +2,7 @@
 Implemented enhancements:
 *	enhance compatibility for offical anti-hx formular of 666/666/666/666
 *	record will marked purple for detected any offical anti-hx formular exists
+
 New Features:
 *	add command "override":
 

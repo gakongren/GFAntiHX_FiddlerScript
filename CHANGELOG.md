@@ -1,4 +1,4 @@
-#ver.3#
+#ver.3([中文](/CHANGELOG_ZHCN.md))#
 Implemented enhancements:
 *	enhance compatibility for offical anti-hx formular of 666/666/666/666
 *	record will marked purple for detected any offical anti-hx formular exists

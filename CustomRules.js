@@ -1,5 +1,6 @@
-import System;
+﻿import System;
 import System.Windows.Forms;
+import System.Collections;
 import Fiddler;
 
 // INTRODUCTION
@@ -150,14 +151,14 @@ class Handlers
 
     static function OnBeforeRequest(oSession: Session) {
         // Sample Rule: Color ASPX requests in RED
-        // if (oSession.uriContains(".aspx")) {	oSession["ui-color"] = "red";	}
+        // if (oSession.uriContains(".aspx")) {    oSession["ui-color"] = "red";    }
 
         // Sample Rule: Flag POSTs to fiddler2.com in italics
-        // if (oSession.HostnameIs("www.fiddler2.com") && oSession.HTTPMethodIs("POST")) {	oSession["ui-italic"] = "yup";	}
+        // if (oSession.HostnameIs("www.fiddler2.com") && oSession.HTTPMethodIs("POST")) {    oSession["ui-italic"] = "yup";    }
 
         // Sample Rule: Break requests for URLs containing "/sandbox/"
         // if (oSession.uriContains("/sandbox/")) {
-        //     oSession.oFlags["x-breakrequest"] = "yup";	// Existence of the x-breakrequest flag creates a breakpoint; the "yup" value is unimportant.
+        //     oSession.oFlags["x-breakrequest"] = "yup";    // Existence of the x-breakrequest flag creates a breakpoint; the "yup" value is unimportant.
         // }
 
         if ((null != gs_ReplaceToken) && (oSession.url.indexOf(gs_ReplaceToken)>-1)) {   // Case sensitive
@@ -266,57 +267,47 @@ class Handlers
     }
         
     static var forceModifyFomular = false;  
-    static var formular = "\"naive_build_gun_formula\":\"33:33:33:33\"";            //要替换掉的公式
+    static var formular = "33:33:33:33";            //要替换掉的公式
     static function OnBeforeResponse(oSession: Session) {
         if (m_Hide304s && oSession.responseCode == 304) {
             oSession["ui-hide"] = "true";
         }
-		var rx2=/\/index\.php\/(\d{4}?)\/Index\/index/;
-		var str2=oSession.PathAndQuery;
-		if (str2.match(rx2)){
-            if(forceModifyFomular)
-                forceHandleFormular(oSession);
-            else
-			    handleFormula(oSession);
-		}
-    }
-		
-    static function forceHandleFormular(oSession: Session){
-        //强制替换掉即使已存在的公式
-        var rx=/\"naive_build_gun_formula\":\"((\d+):(\d+):(\d+):(\d+))?\"/;
-        var strBody=oSession.GetResponseBodyAsString();
-        var re=strBody.match(rx)[0];
-        strBody=strBody.replace(re,formular);
-        oSession.utilSetResponseBody(strBody);
-        FiddlerObject.log("已强制替换请求,公式为"+formular);
-        FiddlerObject.StatusText = "已强制替换请求,公式为"+formular;
-        oSession["ui-color"]="gold";
-    }
-            
-	static function handleFormula(oSession: Session){
-        var strBody=oSession.GetResponseBodyAsString();
-		strBody=strBody.replace("\"naive_build_gun_formula\":\"\"",formular);       //将来如果官方的公式实装了,就不会发生实际的修改效果
-		oSession.utilSetResponseBody(strBody);
-        
-        var rx=/\"naive_build_gun_formula\":\"(\d+):(\d+):(\d+):(\d+)\"/;           //正则匹配判断公式是否被修改
-        if(strBody.Contains(formular)){
-            //官方未实装时由脚本修改的公式
-            FiddlerObject.log("已替换请求,公式为"+formular);
-            FiddlerObject.StatusText = "已替换请求,公式为"+formular;
-            oSession["ui-color"]="orange";
+        var rx2=/\/index\.php\/(\d{4}?)\/Index\/index/;
+        var str2=oSession.PathAndQuery;
+        if (str2.match(rx2)){
+            var strBody=oSession.GetResponseBodyAsString();
+            var body = Fiddler.WebFormats.JSON.JsonDecode(strBody);
+            var replace = handleFormula(body.JSONObject, forceModifyFomular);
+            strBody = Fiddler.WebFormats.JSON.JsonEncode(body.JSONObject);
+            oSession.utilSetResponseBody(strBody);
+			setHighLightColor(oSession, forceModifyFomular, replace);
         }
-        else if(strBody.match(rx)){
-            //官方已经实装公式
-            formular = strBody.match(rx)[0];
-            FiddlerObject.log("未替换请求,已存在公式"+formular);
-            FiddlerObject.StatusText = "未替换请求,已存在公式"+formular;
-            oSession["ui-color"]="purple";
-        }
-        else{
-            FiddlerObject.log("未替换请求");
-        }
-            
     }
+    
+    static function handleFormula(obj: Hashtable, forceOverride: boolean){
+		var isReplaced = false;
+        if(forceOverride || !obj["naive_build_gun_formula"]){
+            obj["naive_build_gun_formula"] = formular;
+			isReplaced = true;
+        }
+        FiddlerObject.log("公式为: "+obj["naive_build_gun_formula"]);
+		/***
+		* 关闭"关闭大破"模式
+		* 但是因为客户端不会像处理反和谐本身那样在sharedprefs里保存
+		* 所以只能保持本次登录有效
+		***/
+		obj.Remove("hexie");
+		return isReplaced;
+    }
+	
+	
+	
+	static function setHighLightColor(oSession: Session, isForced: boolean, isReplaced: boolean){
+		if(isReplaced)
+			oSession["ui-backcolor"]="gold"
+		if(isForced)
+			oSession["ui-color"] = "purple";
+	}
 
 /*
     // This function executes just before Fiddler returns an error that it has 
@@ -409,16 +400,22 @@ class Handlers
         var sAction = sParams[0].toLowerCase();
         switch (sAction) {
         case "override":
-                if(sParams.Length==2){
-                    if("true".Equals(sParams[1])){forceModifyFomular = true;return true;}
-                    if("false".Equals(sParams[1])){forceModifyFomular = false;return true;}
-                    return false;
-                }else if(sParams.Length==5){
-                    formular="\"naive_build_gun_formula\":\""+sParams[1]+":"+sParams[2]+":"+sParams[3]+":"+sParams[4]+"\"";
+            if(sParams.Length==2){
+                if("true".Equals(sParams[1])){
                     forceModifyFomular = true;
                     return true;
                 }
+                if("false".Equals(sParams[1])){
+                    forceModifyFomular = false;
+                    return true;
+                }
                 return false;
+            }else if(sParams.Length==5){
+                formular=sParams[1]+":"+sParams[2]+":"+sParams[3]+":"+sParams[4];
+                forceModifyFomular = true;
+                return true;
+            }
+            return false;
         case "bold":
             if (sParams.Length<2) {uiBoldURI=null; FiddlerObject.StatusText="Bolding cleared"; return false;}
             uiBoldURI = sParams[1]; FiddlerObject.StatusText="Bolding requests for " + uiBoldURI;
@@ -530,3 +527,5 @@ class Handlers
         }
     }
 }
+
+

@@ -1,4 +1,9 @@
-#ver.3([中文](/CHANGELOG_ZHCN.md))#
+#ver.3.1([中文](/CHANGELOG_ZHCN.md))#
+Implemented enhancements:
+*   handle field "hexie" to force dameged-clouth illustration <strong>won't be closed</strong>
+*   new change highlight for replaced request(backlight mark) and record text will be marked purple while in override mode
+  
+#ver.3#
 Implemented enhancements:
 *	enhance compatibility for offical anti-hx formular of 666/666/666/666
 *	record will marked purple for detected any offical anti-hx formular exists
